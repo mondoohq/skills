@@ -1,6 +1,6 @@
 # Mondoo Skills for Claude Code
 
-A collection of specialized skills for MQL (Mondoo Query Language) policy development, CIS benchmark implementation, and cnquery/cnspec provider development.
+A collection of skills for MQL (Mondoo Query Language) development and Mondoo MCP tools integration.
 
 ## Installation
 
@@ -20,30 +20,39 @@ Install the plugin:
 
 | Skill | Description |
 |-------|-------------|
-| `cis-scaffolding` | Create new query implementations and conversion files |
-| `cis-generation` | Generate CIS policies from conversion configs |
-| `cis-audit-lint` | Validate policy audit sections match MQL logic |
-| `cis-navigation` | Navigate between policy files and implementations |
-| `policy-development-workflow` | Create/update CIS benchmark policies |
-| `cnquery-aws-resource-development` | Add AWS provider resources to cnquery |
-| `cnquery-azure-resource-development` | Add Azure provider resources |
-| `cnquery-ms365-resource-development` | Add MS365 provider resources |
-| `context-aware-workflow` | Platform-specific MQL guidance |
+| `mql-dev` | MQL query development with syntax guidance, platform-specific patterns, and MCP tool integration |
 
 ## Usage
 
 After installation, invoke skills with:
 
 ```shell
-/mondoo-skills:skill-name
+/mondoo-skills:mql-dev
 ```
 
-For example:
+## What's Included
 
-```shell
-/mondoo-skills:cis-scaffolding
-/mondoo-skills:policy-development-workflow
-```
+### mql-dev Skill
+
+The `mql-dev` skill provides comprehensive guidance for writing MQL queries:
+
+- **MQL Reference** - Complete syntax documentation, best practices, and anti-patterns to avoid
+- **Platform Samples** - Ready-to-use patterns for AWS, Azure, Linux, Windows, and MS365
+- **MCP Tool Integration** - Real-time schema lookup, query validation, and policy linting
+
+### Mondoo MCP Tools
+
+The skill documents how to use Mondoo's MCP server tools:
+
+| Tool | Purpose |
+|------|---------|
+| `mql-schema-providers` | List all available providers |
+| `mql-schema-overview` | Explore resources in a provider |
+| `mql-schema-resource` | Get field details for a resource |
+| `mql-schema-suggestion` | Autocomplete partial queries |
+| `mql-compiler` | Validate MQL syntax |
+| `mql-bundle-lint` | Lint policy bundles |
+| `mql-bundle-format` | Format policy YAML |
 
 ## License
 

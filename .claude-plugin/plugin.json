@@ -1,6 +1,6 @@
 {
   "name": "mondoo-skills",
-  "description": "MQL policy development, CIS benchmark implementation, and cnquery/cnspec provider development skills for Mondoo",
+  "description": "MQL (Mondoo Query Language) development and Mondoo MCP tools integration skills",
   "version": "1.0.0",
   "author": {
     "name": "Mondoo"
