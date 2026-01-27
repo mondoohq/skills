@@ -1,0 +1,10 @@
+{
+  "name": "mondoo-skills",
+  "description": "MQL policy development, CIS benchmark implementation, and cnquery/cnspec provider development skills for Mondoo",
+  "version": "1.0.0",
+  "author": {
+    "name": "Mondoo"
+  },
+  "repository": "https://github.com/mondoohq/mondoo-skills",
+  "license": "MIT"
+}
