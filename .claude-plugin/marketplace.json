@@ -1,9 +1,13 @@
 {
+  "name": "mondoo-skills",
+  "owner": {
+    "name": "Mondoo"
+  },
   "plugins": [
     {
       "name": "mondoo-skills",
       "description": "MQL (Mondoo Query Language) development and Mondoo MCP tools integration skills",
-      "path": "."
+      "source": "."
     }
   ]
 }
