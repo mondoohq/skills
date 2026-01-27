@@ -16,19 +16,21 @@ Install the plugin:
 /plugin install mondoo-skills@mondoo-skills
 ```
 
+## Usage
+
+Invoke the skill:
+
+```shell
+/mql-dev
+```
+
+The skill will automatically activate when writing MQL queries, working with Mondoo MCP tools, or developing security policies.
+
 ## Available Skills
 
 | Skill | Description |
 |-------|-------------|
 | `mql-dev` | MQL query development with syntax guidance, platform-specific patterns, and MCP tool integration |
-
-## Usage
-
-After installation, invoke skills with:
-
-```shell
-/mondoo-skills:mql-dev
-```
 
 ## What's Included
 
