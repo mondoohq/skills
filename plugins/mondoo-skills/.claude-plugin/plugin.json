@@ -6,5 +6,5 @@
     "name": "Mondoo"
   },
   "repository": "https://github.com/mondoohq/mondoo-skills",
-  "license": "MIT"
+  "license": "Apache-2.0"
 }

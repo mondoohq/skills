@@ -1,13 +1,23 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "mondoo-skills",
+  "version": "1.0.0",
+  "description": "MQL (Mondoo Query Language) development and Mondoo MCP tools integration skills",
   "owner": {
-    "name": "Mondoo"
+    "name": "Mondoo",
+    "email": "hello@mondoo.com"
   },
   "plugins": [
     {
       "name": "mondoo-skills",
-      "description": "MQL (Mondoo Query Language) development and Mondoo MCP tools integration skills",
-      "source": "."
+      "description": "MQL query development with syntax guidance, platform-specific patterns, and MCP tool integration",
+      "version": "1.0.0",
+      "author": {
+        "name": "Mondoo",
+        "email": "hello@mondoo.com"
+      },
+      "source": "./plugins/mondoo-skills",
+      "category": "development"
     }
   ]
 }
