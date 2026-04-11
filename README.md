@@ -28,9 +28,11 @@ The skill will automatically activate when writing MQL queries, working with Mon
 
 ## Available Skills
 
-| Skill | Description |
-|-------|-------------|
-| `mql-dev` | MQL query development with syntax guidance, platform-specific patterns, and MCP tool integration |
+<!-- BEGIN_SKILLS_TABLE -->
+| Name | Description | Documentation |
+|------|-------------|---------------|
+| `mql-dev` | MQL query development with syntax guidance, platform-specific patterns, and MCP tool integration | [SKILL.md](skills/mql-dev/SKILL.md) |
+<!-- END_SKILLS_TABLE -->
 
 ## What's Included
 
