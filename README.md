@@ -7,7 +7,7 @@ A collection of skills for MQL (Mondoo Query Language) development and Mondoo MC
 Add the marketplace:
 
 ```shell
-/plugin marketplace add mondoohq/mondoo-skills
+/plugin marketplace add mondoohq/skills
 ```
 
 Install the plugin:
