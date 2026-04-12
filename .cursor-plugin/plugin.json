@@ -1,0 +1,19 @@
+{
+  "name": "mondoo-skills",
+  "skills": "skills",
+  "description": "MQL (Mondoo Query Language) development and Mondoo MCP tools integration skills",
+  "version": "1.0.0",
+  "author": {
+    "name": "Mondoo"
+  },
+  "homepage": "https://github.com/mondoohq/skills",
+  "repository": "https://github.com/mondoohq/skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "mondoo",
+    "mql",
+    "security",
+    "compliance",
+    "policy"
+  ]
+}
