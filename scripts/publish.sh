@@ -10,7 +10,7 @@ GENERATED_FILES=(
 )
 
 run_generate() {
-  python3 scripts/generate_agents.py
+  npx tsx scripts/generate_agents.ts
 }
 
 run_check() {
