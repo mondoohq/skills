@@ -11,7 +11,7 @@
     {
       "name": "mondoo-skills",
       "source": ".",
-      "skills": "./",
+      "skills": "./skills",
       "description": "MQL query development with syntax guidance, platform-specific patterns, and MCP tool integration"
     }
   ]
