@@ -9,15 +9,6 @@ GENERATED_FILES=(
   "README.md"
 )
 
-file_sig() {
-  local path="$1"
-  if [[ -f "$path" ]]; then
-    shasum -a 256 "$path" | awk '{print $1}'
-  else
-    echo "__MISSING__"
-  fi
-}
-
 run_generate() {
   python3 scripts/generate_agents.py
 }
@@ -27,6 +18,7 @@ run_check() {
   tmpdir="$(mktemp -d)"
   local changed=()
 
+  # Save originals
   for path in "${GENERATED_FILES[@]}"; do
     if [[ -f "$path" ]]; then
       cp "$path" "$tmpdir/$(echo "$path" | tr '/' '_')"
@@ -35,10 +27,19 @@ run_check() {
 
   run_generate
 
+  # Compare generated output against saved originals
   for path in "${GENERATED_FILES[@]}"; do
     local saved="$tmpdir/$(echo "$path" | tr '/' '_')"
     if [[ ! -f "$saved" ]] || ! diff -q "$path" "$saved" > /dev/null 2>&1; then
       changed+=("$path")
+    fi
+  done
+
+  # Restore originals so check mode is side-effect free
+  for path in "${GENERATED_FILES[@]}"; do
+    local saved="$tmpdir/$(echo "$path" | tr '/' '_')"
+    if [[ -f "$saved" ]]; then
+      cp "$saved" "$path"
     fi
   done
 
