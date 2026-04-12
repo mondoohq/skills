@@ -1,5 +1,5 @@
 ---
-name: mql-dev
+name: mondoo-mql
 description: Use when writing MQL (Mondoo Query Language) queries, working with Mondoo MCP tools, or developing security policies
 ---
 

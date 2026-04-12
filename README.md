@@ -20,7 +20,7 @@ The skills in this repository follow the standardized [Agent Skills](https://age
 2. Install a skill:
 
 ```shell
-/plugin install mql-dev@mondoohq/skills
+/plugin install mondoo-mql@mondoohq/skills
 ```
 
 ### Codex
@@ -61,7 +61,7 @@ Install from repository URL or local checkout via the Cursor plugin flow.
 The skills automatically activate when working on relevant tasks. You can also invoke them directly:
 
 ```shell
-/mql-dev
+/mondoo-mql
 ```
 
 ## Available Skills
@@ -69,14 +69,14 @@ The skills automatically activate when working on relevant tasks. You can also i
 <!-- BEGIN_SKILLS_TABLE -->
 | Name | Description | Documentation |
 |------|-------------|---------------|
-| `mql-dev` | MQL query development with syntax guidance, platform-specific patterns, and MCP tool integration | [SKILL.md](skills/mql-dev/SKILL.md) |
+| `mondoo-mql` | MQL query development with syntax guidance, platform-specific patterns, and MCP tool integration | [SKILL.md](skills/mondoo-mql/SKILL.md) |
 <!-- END_SKILLS_TABLE -->
 
 ## What's Included
 
-### mql-dev Skill
+### mondoo-mql Skill
 
-The `mql-dev` skill provides comprehensive guidance for writing MQL queries:
+The `mondoo-mql` skill provides comprehensive guidance for writing MQL queries:
 
 - **MQL Reference** - Complete syntax documentation, best practices, and anti-patterns to avoid
 - **Platform Samples** - Ready-to-use patterns for AWS, Azure, Linux, Windows, and MS365

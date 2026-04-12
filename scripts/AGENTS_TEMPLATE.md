@@ -13,6 +13,6 @@ IMPORTANT: You MUST read the SKILL.md file whenever the description of the skill
 {{name}}: `{{description}}`
 {{/skills}}
 
-Paths referenced within SKILL folders are relative to that SKILL. For example the mql-dev `samples/aws.md` would be referenced as `skills/mql-dev/samples/aws.md`.
+Paths referenced within SKILL.md files are relative to that skill's directory.
 
 </skills>
