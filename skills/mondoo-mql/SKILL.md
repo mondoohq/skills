@@ -7,11 +7,11 @@ description: Use when writing MQL (Mondoo Query Language) queries, working with 
 
 ## Overview
 
-This skill provides guidance for writing MQL (Mondoo Query Language) queries and using Mondoo's MCP (Model Context Protocol) tools for validating and testing queries.
+This skill provides guidance for writing MQL (Mondoo Query Language) queries and validating them using either the cnspec CLI or Mondoo's MCP tools.
 
 **Two-tier knowledge system:**
 - **Reference Files** (static): MQL syntax docs, platform-specific examples
-- **MCP Tools** (live): Real-time schema lookup and query validation
+- **Schema Tools** (live): Real-time schema lookup and query validation via cnspec CLI or MCP
 
 ## When to Use
 
@@ -34,73 +34,131 @@ Located within this skill directory:
 | [samples/windows.md](samples/windows.md) | Windows system patterns |
 | [samples/ms365.md](samples/ms365.md) | Microsoft 365 patterns |
 
-## Mondoo MCP Server Tools
+## Schema Discovery & Query Validation
 
-The Mondoo MCP server provides real-time access to MQL schema and compilation tools. Use these instead of static documentation for validation.
+Two equivalent interfaces are available for real-time schema lookup and query validation. Use whichever is available in your environment — they provide the same data.
 
-### Available MCP Tools
+### cnspec CLI (recommended — works everywhere)
 
-| Tool | Purpose | When to Use |
-|------|---------|-------------|
-| `mcp__mondoo-mcp-http__mql-schema-providers` | List all providers | Finding queryable platforms |
-| `mcp__mondoo-mcp-http__mql-schema-overview` | List resources in provider | Exploring available resources |
-| `mcp__mondoo-mcp-http__mql-schema-resource` | Get resource details | Checking fields and types |
-| `mcp__mondoo-mcp-http__mql-schema-suggestion` | Get autocomplete suggestions | Finding resources by partial name |
-| `mcp__mondoo-mcp-http__mql-compiler` | Validate MQL syntax | Before integrating queries |
-| `mcp__mondoo-mcp-http__mql-bundle-lint` | Lint policy bundle | Validating policy structure |
-| `mcp__mondoo-mcp-http__mql-bundle-format` | Format policy bundle | Standardizing YAML style |
-| `mcp__mondoo-mcp-http__mql-policy-bundle` | Generate policy from queries | Creating policy YAML |
+The cnspec CLI provides structured JSON output for all schema operations. No MCP server required.
 
-### Quick Examples
+#### List all providers
 
-```
-# List all providers
-mcp__mondoo-mcp-http__mql-schema-providers()
-# Returns: aws, azure, gcp, ms365, os, k8s, github, etc.
-
-# Get all AWS resources
-mcp__mondoo-mcp-http__mql-schema-overview(provider: "aws")
-
-# Get EC2 instance field details
-mcp__mondoo-mcp-http__mql-schema-resource(
-  provider: "aws",
-  resource: "aws.ec2.instance"
-)
-
-# Get suggestions for partial query
-mcp__mondoo-mcp-http__mql-schema-suggestion(
-  provider: "aws",
-  partial_query: "aws.ec2"
-)
-
-# Validate MQL compiles
-mcp__mondoo-mcp-http__mql-compiler(
-  provider: "aws",
-  queries: ["aws.ec2.instances.all(httpTokens == 'required')"]
-)
-
-# Lint a policy bundle
-mcp__mondoo-mcp-http__mql-bundle-lint(
-  bundle: "<yaml content>",
-  fileName: "policy.mql.yaml"
-)
-
-# Format a policy bundle
-mcp__mondoo-mcp-http__mql-bundle-format(
-  bundle: "<yaml content>"
-)
+```bash
+cnspec providers list --json
 ```
 
-### When to Use MCP vs Reference Files
+Returns an array of providers with name, version, and connectors:
+```json
+[
+  {"name": "aws", "version": "13.6.2", "connectors": ["aws"]},
+  {"name": "os", "version": "13.8.1", "connectors": ["local", "ssh", "docker"]}
+]
+```
 
-| Need | Use |
-|------|-----|
+#### Get provider details (connectors and flags)
+
+```bash
+cnspec providers info aws --json
+cnspec providers info aws azure --json   # multiple providers
+```
+
+Returns connector details including available flags for each connection type.
+
+#### List resources in a provider
+
+```bash
+cnspec providers resources aws --json
+```
+
+Returns all resources with name, title, and field count:
+```json
+{
+  "provider": "aws",
+  "total_resources": 111,
+  "resources": [
+    {"name": "aws.ec2.instance", "title": "Amazon EC2 Instance", "field_count": 52}
+  ]
+}
+```
+
+#### Get resource field details
+
+```bash
+cnspec providers resources aws aws.ec2.instance --json
+```
+
+Returns all fields with types and descriptions:
+```json
+{
+  "name": "aws.ec2.instance",
+  "title": "Amazon EC2 Instance",
+  "fields": [
+    {"name": "arn", "type": "string", "title": "Amazon Resource Name"},
+    {"name": "tags", "type": "map[string]string", "title": "Instance tags"}
+  ]
+}
+```
+
+#### Validate MQL queries
+
+```bash
+# Full compilation check — fails with exit 1 on invalid resources/fields
+cnspec run local -c "asset.name" --ast
+
+# Lexical parse only — checks syntax, NOT resource/field validity
+cnspec run local -c "asset.name" --parse
+```
+
+**Important**: `--parse` accepts syntactically valid but semantically wrong queries (e.g., `invalid.bogus.thing` parses with exit 0). Use `--ast` to catch invalid resource or field names.
+
+#### Execute queries
+
+```bash
+cnspec run local -c "users { name uid }" --json
+```
+
+#### Policy management
+
+```bash
+# Lint a policy bundle with structured SARIF output
+cnspec policy lint policy.mql.yaml -o sarif
+
+# Format a policy bundle to standard style (modifies file in place)
+cnspec policy format policy.mql.yaml
+
+# Sort and format a policy bundle
+cnspec policy format policy.mql.yaml --sort
+
+# Generate an example policy bundle scaffold
+cnspec policy init example.mql.yaml
+```
+
+### Mondoo MCP Server Tools (alternative)
+
+If the Mondoo MCP server is available, you can use these tools instead of the CLI.
+
+| MCP Tool | CLI Equivalent |
+|----------|---------------|
+| `mcp__mondoo-mcp-http__mql-schema-providers` | `cnspec providers list --json` |
+| `mcp__mondoo-mcp-http__mql-schema-overview` | `cnspec providers resources <provider> --json` |
+| `mcp__mondoo-mcp-http__mql-schema-resource` | `cnspec providers resources <provider> <resource> --json` |
+| `mcp__mondoo-mcp-http__mql-schema-suggestion` | No CLI equivalent (use LSP) |
+| `mcp__mondoo-mcp-http__mql-compiler` | `cnspec run local -c "query" --ast` |
+| `mcp__mondoo-mcp-http__mql-bundle-lint` | `cnspec policy lint file.mql.yaml -o sarif` |
+| `mcp__mondoo-mcp-http__mql-bundle-format` | `cnspec policy format file.mql.yaml` |
+| `mcp__mondoo-mcp-http__mql-policy-bundle` | `cnspec policy init file.mql.yaml` |
+
+### When to Use What
+
+| Need | Best Option |
+|------|-------------|
 | MQL syntax patterns | `mql-reference.md` |
 | Platform-specific examples | `samples/*.md` |
-| Resource availability check | `mql-schema-overview` |
-| Field types and descriptions | `mql-schema-resource` |
-| Query compilation validation | `mql-compiler` |
-| Policy structure validation | `mql-bundle-lint` |
+| Resource availability check | `cnspec providers resources <provider> --json` |
+| Field types and descriptions | `cnspec providers resources <provider> <resource> --json` |
+| Query compilation validation | `cnspec run local -c "query" --ast` |
+| Policy structure validation | `cnspec policy lint file.mql.yaml -o sarif` |
 
 ## MQL Quick Reference
 
@@ -202,18 +260,18 @@ users.where(shell != null).all(shell == "/bin/bash") # Good
 ## Workflow
 
 1. **Understand requirements** - What resources need to be checked?
-2. **Explore schema** - Use `mql-schema-overview` and `mql-schema-resource`
+2. **Explore schema** - Use `cnspec providers resources <provider> --json`
 3. **Check samples** - Look for similar patterns in `samples/*.md`
 4. **Write query** - Follow patterns from `mql-reference.md`
-5. **Validate** - Use `mql-compiler` to verify syntax
-6. **Test** - Run with `cnquery run` against target systems
+5. **Validate** - Use `cnspec run local -c "query" --ast` to verify syntax
+6. **Test** - Run with `cnspec run` against target systems
 
 ## Platform-Specific Guidance
 
 ### AWS
 - Use `aws.*` resources
 - Check `samples/aws.md` for IAM, EC2, S3 patterns
-- Validate with provider: "aws"
+- Explore: `cnspec providers resources aws --json`
 
 ### Azure
 - Use `azure.subscription.*` resources
