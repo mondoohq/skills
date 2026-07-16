@@ -1,6 +1,6 @@
 # Mondoo Skills
 
-A collection of agent skills for MQL (Mondoo Query Language) development and Mondoo MCP tools integration. Compatible with Claude Code, Codex, Gemini CLI, and Cursor.
+A collection of agent skills for MQL (Mondoo Query Language) development and for [xgrep](https://github.com/mondoohq/xgrep)-powered security work — code inspection, rule authoring, finding triage, and remediation. Compatible with Claude Code, Codex, Gemini CLI, and Cursor.
 
 The skills in this repository follow the standardized [Agent Skills](https://agentskills.io/home) format.
 
@@ -62,6 +62,8 @@ The skills automatically activate when working on relevant tasks. You can also i
 
 ```shell
 /mondoo-mql
+/xgrep-triage
+/xgrep-rule
 ```
 
 ## Available Skills
@@ -70,6 +72,12 @@ The skills automatically activate when working on relevant tasks. You can also i
 | Name | Description | Documentation |
 |------|-------------|---------------|
 | `mondoo-mql` | MQL query development with syntax guidance, platform-specific patterns, and MCP tool integration | [SKILL.md](skills/mondoo-mql/SKILL.md) |
+| `secure-coding` | Secure coding guidance for AI agents - proactively avoid generating vulnerable code patterns across 7 languages | [SKILL.md](skills/secure-coding/SKILL.md) |
+| `xgrep-fix` | Fix a whole set of xgrep findings — or just the triage-confirmed true positives in a findings.json — in one pass through the verify/apply harness | [SKILL.md](skills/xgrep-fix/SKILL.md) |
+| `xgrep-inspect` | Navigate and understand source code using xgrep's AST-powered code intelligence | [SKILL.md](skills/xgrep-inspect/SKILL.md) |
+| `xgrep-remediate` | Fix a confirmed xgrep finding safely using the verify/apply harness — apply deterministic fixes, author and verify assisted fixes against the fix contract, and surface advisory guidance | [SKILL.md](skills/xgrep-remediate/SKILL.md) |
+| `xgrep-rule-creator` | Create custom xgrep rules for detecting security vulnerabilities and code patterns with test-first methodology | [SKILL.md](skills/xgrep-rule-creator/SKILL.md) |
+| `xgrep-triage` | Investigate and classify xgrep scan findings using code graph analysis | [SKILL.md](skills/xgrep-triage/SKILL.md) |
 <!-- END_SKILLS_TABLE -->
 
 ## What's Included
@@ -95,6 +103,21 @@ The skill documents how to use Mondoo's MCP server tools:
 | `mql-compiler` | Validate MQL syntax |
 | `mql-bundle-lint` | Lint policy bundles |
 | `mql-bundle-format` | Format policy YAML |
+
+### xgrep Skills
+
+A set of skills built on [xgrep](https://github.com/mondoohq/xgrep), Mondoo's fast,
+Semgrep-compatible SAST scanner, for security review and remediation workflows:
+
+- **`xgrep-inspect`** - Navigate and understand source code using xgrep's AST-powered code intelligence
+- **`xgrep-rule-creator`** - Create custom xgrep rules with a test-first methodology, or port rules to new languages
+- **`xgrep-triage`** - Investigate and classify scan findings using code-graph analysis
+- **`xgrep-remediate`** - Fix a confirmed finding safely using xgrep's verify/apply harness
+- **`xgrep-fix`** - Fix a whole set of findings — or the true positives a triage report confirmed — in one pass
+- **`secure-coding`** - Proactively avoid generating vulnerable code across 7 languages
+
+These skills drive the `xgrep` CLI; install it from the
+[xgrep repository](https://github.com/mondoohq/xgrep) to use them.
 
 ## License
 
