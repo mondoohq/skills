@@ -5,7 +5,7 @@
     "name": "Mondoo"
   },
   "metadata": {
-    "description": "MQL (Mondoo Query Language) development and Mondoo MCP tools integration skills",
+    "description": "MQL (Mondoo Query Language) development and xgrep security skills for Claude Code and other agents",
     "version": "1.0.0"
   },
   "plugins": [
@@ -14,6 +14,42 @@
       "source": "./skills/mondoo-mql",
       "skills": "./",
       "description": "MQL query development with syntax guidance, platform-specific patterns, and MCP tool integration"
+    },
+    {
+      "name": "xgrep-inspect",
+      "source": "./skills/xgrep-inspect",
+      "skills": "./",
+      "description": "Navigate and understand source code using xgrep's AST-powered code intelligence"
+    },
+    {
+      "name": "xgrep-rule-creator",
+      "source": "./skills/xgrep-rule-creator",
+      "skills": "./",
+      "description": "Create custom xgrep rules for detecting security vulnerabilities and code patterns with test-first methodology"
+    },
+    {
+      "name": "xgrep-triage",
+      "source": "./skills/xgrep-triage",
+      "skills": "./",
+      "description": "Investigate and classify xgrep scan findings using code graph analysis"
+    },
+    {
+      "name": "xgrep-remediate",
+      "source": "./skills/xgrep-remediate",
+      "skills": "./",
+      "description": "Fix a confirmed xgrep finding safely using the verify/apply harness — apply deterministic fixes, author and verify assisted fixes against the fix contract, and surface advisory guidance"
+    },
+    {
+      "name": "xgrep-fix",
+      "source": "./skills/xgrep-fix",
+      "skills": "./",
+      "description": "Fix a whole set of xgrep findings — or just the triage-confirmed true positives in a findings.json — in one pass through the verify/apply harness"
+    },
+    {
+      "name": "secure-coding",
+      "source": "./skills/secure-coding",
+      "skills": "./",
+      "description": "Secure coding guidance for AI agents - proactively avoid generating vulnerable code patterns across 7 languages"
     }
   ]
 }

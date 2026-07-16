@@ -1,7 +1,7 @@
 {
   "name": "mondoo-skills",
   "skills": "skills",
-  "description": "MQL (Mondoo Query Language) development and Mondoo MCP tools integration skills",
+  "description": "MQL (Mondoo Query Language) development and xgrep security skills for Claude Code and other agents",
   "version": "1.0.0",
   "author": {
     "name": "Mondoo"
