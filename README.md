@@ -11,16 +11,40 @@ The skills in this repository follow the standardized [Agent Skills](https://age
 
 ### Claude Code
 
-1. Register the repository as a plugin marketplace:
+Installing is a **two-step** flow — registering the marketplace makes the skills
+*available*, but each skill is installed individually (opt-in), so you pull only the
+ones you want.
+
+1. Register the repository as a plugin marketplace (once):
 
 ```shell
 /plugin marketplace add mondoohq/skills
 ```
 
-2. Install a skill:
+2. Install the skills you want:
 
 ```shell
+# MQL development
 /plugin install mondoo-mql@mondoohq/skills
+
+# xgrep security skills
+/plugin install xgrep-inspect@mondoohq/skills
+/plugin install xgrep-rule-creator@mondoohq/skills
+/plugin install xgrep-triage@mondoohq/skills
+/plugin install xgrep-remediate@mondoohq/skills
+/plugin install xgrep-fix@mondoohq/skills
+/plugin install secure-coding@mondoohq/skills
+```
+
+Or run `/plugin` and pick from **Browse plugins** interactively. Adding the marketplace
+alone does **not** install anything — if `/plugin install …@mondoohq/skills` reports
+*"Marketplace not found"*, run step 1 first.
+
+From a shell, the same works non-interactively with the `claude` CLI:
+
+```shell
+claude plugin marketplace add mondoohq/skills
+claude plugin install xgrep-triage@mondoohq/skills
 ```
 
 ### Codex
