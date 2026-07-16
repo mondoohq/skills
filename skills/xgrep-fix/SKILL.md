@@ -85,14 +85,10 @@ xgrep fix verify --confirmed < findings.json
 
 For un-triaged input, drop `--confirmed` and scope with `--rule` / `--max-severity` /
 `--min-confidence` as needed. `fix` only ever auto-applies the **deterministic** tier
-from a report; `assisted` come back as `needs-agent` and `advisory` as `advisory`, so
-piping the whole file is safe.
-
-`fix` only ever derives **deterministic** candidates from a piped report; `assisted`
-findings come back as `needs-agent` and `advisory` as `advisory` — so it is safe to
-pipe the whole selected report and let `fix` apply just the mechanical ones. Add
-`--strict` to exit non-zero on any rejection (use in CI). The re-scan gate runs by
-default. Collect the streamed `FixOutcome`s (keyed by fingerprint) for the report.
+from a piped report — `assisted` findings come back as `needs-agent` and `advisory` as
+`advisory` — so piping the whole file and letting `fix` apply just the mechanical ones
+is safe. Add `--strict` to exit non-zero on any rejection (use in CI). The re-scan gate
+runs by default. Collect the streamed `FixOutcome`s (keyed by fingerprint) for the report.
 
 ## Step 4 — Assisted: drive the loop per finding
 

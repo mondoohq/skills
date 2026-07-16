@@ -214,22 +214,22 @@ package main
 import "database/sql"
 
 func vulnerable(db *sql.DB, userInput string) {
-    // ruleid: sql-injection-go
     db.Query("SELECT * FROM users WHERE id = " + userInput)
 
-    // ruleid: sql-injection-go
     query := fmt.Sprintf("SELECT * FROM users WHERE id = '%s'", userInput)
     db.Query(query)
 }
 
 func safe(db *sql.DB, userInput string) {
-    // ok: sql-injection-go
     db.Query("SELECT * FROM users WHERE id = ?", userInput)
 
-    // ok: sql-injection-go
     db.Query("SELECT COUNT(*) FROM users")
 }
 ```
+
+Keep the source file annotation-free (as in Step 2): group the vulnerable calls
+first, then the safe ones, and record which lines must match in the Go test's
+`ExpectMatch` — not with inline `// ruleid:` / `// ok:` comments.
 
 ### Step 4: Write the Variant Rule
 
@@ -281,7 +281,7 @@ patterns:
 Always write test cases that verify sanitizers actually block findings:
 
 ```python
-# ok: my-taint-rule
+# safe: sanitized before the sink, so the rule must NOT fire here
 sanitized = sanitize(user_input)
 dangerous(sanitized)
 ```
