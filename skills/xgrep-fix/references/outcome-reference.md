@@ -70,7 +70,7 @@ Single-file edit:
   "id": "finding-7a2f", "attempt": 1 }
 ```
 
-Cross-file changeset (ADR-0258 — all files verified and written as a unit, or none):
+Cross-file changeset (all files verified and written as a unit, or none):
 
 ```jsonc
 { "id": "changeset-1", "rule_id": "py-sql-injection", "files": [

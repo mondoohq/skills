@@ -37,11 +37,11 @@ command so the re-scan gate uses the rule that produced the finding.
 
 ## The three fix tiers
 
-Every fixable finding carries a confidence in `extra.fix_info.kind` (ADR-0230).
+Every fixable finding carries a confidence in `extra.fix_info.kind`.
 The tier decides who authors the edit:
 
 - **`deterministic`** — xgrep already computed the exact edit. `scan` emits it; the
-  write-only `fix` command applies it through the harness (ADR-0257). `scan` never
+  write-only `fix` command applies it through the harness. `scan` never
   mutates source — `fix` does:
   ```bash
   xgrep scan --json <target> | xgrep fix verify   # preview the diffs (no write)
