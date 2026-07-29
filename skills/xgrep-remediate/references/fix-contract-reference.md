@@ -1,6 +1,6 @@
 # Fix-info & fix-contract reference
 
-Every fixable finding in `xgrep scan --json` carries `extra.fix_info` (ADR-0230).
+Every fixable finding in `xgrep scan --json` carries `extra.fix_info`.
 It tells you who authors the edit and, for assisted findings, exactly what a valid
 fix must achieve.
 
