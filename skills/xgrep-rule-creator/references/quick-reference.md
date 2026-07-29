@@ -20,7 +20,7 @@ xgrep -f <rules.yaml> --severity ERROR <target>
 # Filter by rule ID
 xgrep -f <rules.yaml> --rule-id my-rule <target>
 
-# Apply fixes (scan is read-only; the separate `fix` command writes — ADR-0257)
+# Apply fixes (scan is read-only; the separate `fix` command writes)
 xgrep scan -f <rules.yaml> --json <target> | xgrep fix verify -f <rules.yaml>  # preview, no write
 xgrep scan -f <rules.yaml> --json <target> | xgrep fix apply  -f <rules.yaml>  # apply
 ```

@@ -317,3 +317,151 @@ patterns:
       metavariable: $SIZE
       comparison: $SIZE > 1024
 ```
+
+---
+
+## Silent-Failure Anti-Patterns
+
+The anti-patterns above mostly produce a *wrong* result you can see. These
+produce **no result** — the rule validates, runs, and reports nothing (or
+quietly reports less than you think). `xgrep validate` says
+"1 rules validated successfully" for every one of them.
+
+**Because they are invisible, a passing fixture does not clear them.** When a
+new rule finds nothing, work down this list before concluding the target is
+clean.
+
+### 7. Trailing ellipsis binds only the LAST argument
+
+`...` is greedy, so a metavariable after it captures only the final argument.
+A metavariable *between* two ellipses still never binds a middle argument.
+
+Measured on `log.Print(a, b, secret)` / `(a, secret, b)` / `(secret, a, b)`:
+
+| pattern | last | middle | first |
+|---|:--:|:--:|:--:|
+| `f(..., $V)` | yes | no | no |
+| `f(..., $V, ...)` | yes | **no** | yes |
+| `f($V, ...)` | no | no | yes |
+
+```yaml
+# BAD: only fires when the secret is the final argument
+- pattern: log.Printf(..., $VAR)
+
+# BETTER: also covers the first position
+- pattern: log.Printf(..., $VAR, ...)
+
+# For a specific known position, pin it explicitly:
+- pattern: scanf($FMT, $BUF, ...)     # first variadic
+- pattern: scanf($FMT, ..., $BUF)     # last variadic
+```
+
+This bites hardest on variadic sinks, where the interesting value genuinely can
+be anywhere: a secret-logging rule written `log.Printf(..., $VAR)` only fires
+when the secret happens to be the final argument, and `scanf("%s %d", buf, &n)`
+taints `&n` rather than `buf`. Middle-position matching is an engine limitation,
+so enumerate the positions explicitly when the value can be anywhere.
+
+### 8. Out-parameter sources need `focus-metavariable`
+
+Functions that write **through** an argument (rather than returning the value)
+taint the *buffer*, not the call expression. Without `focus-metavariable` the
+taint lands on an expression that reaches no sink and the rule finds nothing.
+
+```yaml
+# BAD: taints the call expression (which is a byte COUNT, not the data)
+pattern-sources:
+  - pattern: read($FD, $BUF, ...)
+
+# GOOD: taint follows the buffer
+pattern-sources:
+  - patterns:
+    - pattern: read($FD, $BUF, ...)
+    - focus-metavariable: $BUF
+```
+
+Applies to `read`/`recv`/`recvfrom`/`fread`/`fgets`/`gets`/`scanf`/`fscanf`,
+`std::getline`, and similar. **Decide from the SINK**: a sink consuming a
+*length* (`alloca($N)`, `malloc($N)`) genuinely wants the return value and must
+NOT focus the buffer; a sink consuming *content* (a format string, path,
+command, query) wants the buffer.
+
+### 9. A shape rule must not carry `subcategory: vuln`
+
+If a rule matches code *shape* without proving untrusted input reaches the sink,
+it is a hardening finding — `subcategory: audit`. Reserve `vuln` for
+taint-proven detection. Tagging a shape rule `vuln` inflates the exploitable
+false-positive rate and buries real findings.
+
+The house pattern is a **pair**: a taint rule (`vuln`, high confidence) plus a
+shape rule (`audit`) sharing the sink family.
+
+```yaml
+# <rule>-taint : mode: taint, subcategory: vuln  — proven reachable
+# <rule>       : shape only,  subcategory: audit — e.g. non-constant format string
+```
+
+This one is worth taking seriously: on a large labeled benchmark a single
+mis-tagged shape rule can account for the overwhelming majority of a scanner's
+apparent false positives, because it fires on every "fixed" variant that still
+contains the dangerous construct. Splitting it moves those findings to the audit
+tier — where they are still reported — and leaves the vuln tier meaning what it
+claims.
+
+### 10. A bare call pattern also matches the DECLARATION
+
+`foo(...)` matches `func foo(a, b string)` — the declaration's parameter list —
+not just calls. Used as a presence check ("does this function call `foo`?") it
+silently also matches "this file *declares* `foo`", which inverts a gate.
+
+```yaml
+# BAD: matches the declaration too
+- pattern-inside: |
+    func $H(...) { ... getSession(...) ... }
+
+# GOOD: anchor on the call in value position
+- pattern-inside: |
+    func $H(...) { ... $SID := getSession(...) ... }
+```
+
+### 11. Folding `pattern-inside` alternatives collapses source seeding
+
+Several `pattern-inside` variants inside one `pattern-either` seed the source
+only **once per file**: a file with three otherwise-identical handlers reports
+one finding instead of three. Give each variant its own source block (YAML
+anchors keep it readable).
+
+```yaml
+# BAD: one alternation -> one finding per file
+pattern-sources:
+  - patterns:
+    - pattern-either: [ ... ]
+    - pattern-either:
+      - pattern-inside: |
+          func $H(...) { ... $S.GetSession(...) ... }
+      - pattern-inside: |
+          func $H(...) { ... getSession(...) ... }
+
+# GOOD: separate blocks, one per gate variant
+pattern-sources:
+  - patterns:
+    - pattern-either: &req-id [ ... ]
+    - pattern-inside: |
+        func $H(...) { ... $S.GetSession(...) ... }
+  - patterns:
+    - pattern-either: *req-id
+    - pattern-inside: |
+        func $H(...) { ... getSession(...) ... }
+```
+
+### Diagnosing a rule that finds nothing
+
+1. Drop the rule to its bare positive `pattern` and confirm that matches at all.
+2. Re-add clauses one at a time — the one that zeroes the result is the culprit.
+3. For taint rules, test the source and sink patterns **separately** as plain
+   `pattern` rules before combining them.
+4. Check the target is actually being scanned: a scope filter, `.semgrepignore`
+   or language filter can drop every file silently. Scanning a fixture that
+   lives under `rules/` is filtered by default — use `--include-tests`.
+5. Beware fixture size: a rule can behave differently on a small file than a
+   large one, so confirm on a realistic target too.

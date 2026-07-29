@@ -32,8 +32,21 @@ Create production-quality xgrep rules with proper testing and validation. Also p
 - **"Taint mode is overkill"** -- If data flows from user input to a dangerous sink, taint mode gives better precision than pattern matching.
 - **"One test is enough"** -- Include edge cases: different coding styles, sanitized inputs, safe alternatives, boundary conditions.
 - **"I'll optimize first"** -- Write correct patterns first, optimize after all tests pass. Premature optimization causes regressions.
+- **"The rule found nothing, so the code is clean"** -- Far more often the rule is
+  silently broken. A rule that validates and reports nothing is the single most
+  common failure mode; see *Silent-Failure Anti-Patterns* in
+  [workflow.md]({baseDir}/references/workflow.md#silent-failure-anti-patterns) and
+  work down the diagnosis checklist before believing a zero.
 
 ## Anti-Patterns
+
+**Read [Silent-Failure Anti-Patterns]({baseDir}/references/workflow.md#silent-failure-anti-patterns) before writing taint rules.** Those five produce
+*no* finding rather than a wrong one, so a green `validate` and a passing fixture
+do not rule them out: a trailing `...` binds only the last argument; an
+out-parameter source without `focus-metavariable` taints nothing reachable; a
+bare call pattern also matches the declaration; folding `pattern-inside`
+alternatives collapses seeding to one finding per file; and a shape rule tagged
+`subcategory: vuln` inflates the false-positive rate instead.
 
 **Too broad** -- matches everything:
 ```yaml
@@ -178,7 +191,15 @@ xgrep Rule Progress:
 - [ ] Step 4: Iterate until all tests pass (go test ./test/rules/<lang>/)
 - [ ] Step 5: Optimize the rule (remove redundancies, re-test)
 - [ ] Step 6: Final validation (xgrep validate + real-world scan)
+- [ ] Step 7: Confirm it is not silently broken — every clause contributes a
+      match, and the rule fires on a realistic target, not just the fixture
 ```
+
+**Step 7 is not optional for taint rules.** `validate` checks syntax; it cannot
+tell a precise rule from one that matches nothing. Verify each source pattern and
+each sink pattern fires on its own before trusting the combined rule, and check
+the finding count on a real project — a rule that is correct on a 20-line
+fixture and silent on a real codebase is the normal shape of these bugs.
 
 ## Documentation
 
