@@ -31,6 +31,9 @@ Create production-quality xgrep rules with proper testing and validation. Also p
 - **"It matches the vulnerable case"** -- Matching vulnerabilities is half the job. Verify safe cases don't match (false positives break trust).
 - **"Taint mode is overkill"** -- If data flows from user input to a dangerous sink, taint mode gives better precision than pattern matching.
 - **"One test is enough"** -- Include edge cases: different coding styles, sanitized inputs, safe alternatives, boundary conditions.
+- **"It passes the tests, so it's done"** -- a rule can be correct and still be a
+  defect. Correctness and cost are separate properties, and the tests only measure
+  the first. Check what the rule costs on a real codebase (workflow.md Step 5).
 - **"I'll optimize first"** -- Write correct patterns first, optimize after all tests pass. Premature optimization causes regressions.
 - **"The rule found nothing, so the code is clean"** -- Far more often the rule is
   silently broken. A rule that validates and reports nothing is the single most
@@ -82,6 +85,33 @@ pattern-regex: "eval\\(.*\\)"
 # GOOD: AST-aware matching
 pattern: eval(...)
 ```
+
+**A taint rule whose sink has no distinctive literal** -- scans everything:
+```yaml
+# BAD: the source is one of the most common forms in the language, and the sink
+# is punctuation plus a 3-letter type keyword. Engines pre-filter candidate files
+# using the literal tokens in your SINK pattern; `int` is too short and too
+# common to filter on, so no file can be excluded and taint gets seeded at every
+# `&x` in the codebase.
+mode: taint
+pattern-sources:
+  - pattern: "& $V"          # address-of: one of the most common forms in C
+pattern-sinks:
+  - pattern: "*((int*)$P)"   # usable literal tokens: none
+
+# GOOD: give the sink a token worth pre-filtering on, or narrow the source so it
+# is not seeded everywhere.
+mode: taint
+pattern-sources:
+  - patterns:
+    - pattern: "char $V = ...;"
+    - pattern-inside: "$FUNC(...) { ... }"
+pattern-sinks:
+  - pattern: "read_as_int($P)"
+```
+This shape is pathological on any large codebase: the vast majority of files
+cannot contain the sink, but nothing tells the engine that, so the rule seeds
+taint in all of them. Expect it to dominate scan time and return little.
 
 **Overly specific** -- misses variations:
 ```yaml
@@ -190,6 +220,7 @@ xgrep Rule Progress:
 - [ ] Step 3: Write the rule
 - [ ] Step 4: Iterate until all tests pass (go test ./test/rules/<lang>/)
 - [ ] Step 5: Optimize the rule (remove redundancies, re-test)
+- [ ] Step 5b: Measure its COST on a real codebase (`--time`; seconds-per-finding)
 - [ ] Step 6: Final validation (xgrep validate + real-world scan)
 - [ ] Step 7: Confirm it is not silently broken — every clause contributes a
       match, and the rule fires on a realistic target, not just the fixture
