@@ -167,8 +167,17 @@ import json
 rt = json.load(open('/tmp/report.json'))['time']['rule_times']
 for r in sorted(rt, key=lambda r: -r['total_seconds'])[:10]:
     n = r.get('findings')
-    per = 'INF (found nothing)' if n == 0 else ('%.2fs' % (r['total_seconds']/n) if n else '-')
-    print('%8.1fs  %5s findings  %-20s %s' % (r['total_seconds'], n, per, r['id']))
+    # absent and zero are different answers: 'the binary did not report it'
+    # versus 'the rule ran and found nothing'. Keep them apart explicitly --
+    # relying on truthiness gets the right output here only by accident of
+    # ordering, which is the kind of thing that breaks when someone reorders it.
+    if n is None:
+        per = '-  (no findings data)'
+    elif n == 0:
+        per = 'INF  (ran, found nothing)'
+    else:
+        per = '%.2fs' % (r['total_seconds'] / n)
+    print('%8.1fs  %5s findings  %-24s %s' % (r['total_seconds'], n, per, r['id']))
 "
 ```
 
