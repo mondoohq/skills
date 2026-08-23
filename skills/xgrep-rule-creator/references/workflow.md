@@ -153,6 +153,67 @@ Only after all tests pass:
 2. **Simplify combinators**: If all branches of `pattern-either` share structure, factor it out
 3. **Re-test after every change**: Optimization can introduce regressions
 
+#### Check what the rule COSTS, not just what it finds
+
+A rule can pass every test and still be a defect. Correctness and cost are
+separate properties, and the tests only measure the first.
+
+```bash
+# --time reports per-rule evaluation time and findings
+xgrep scan --json --time -o /tmp/report.json <a large real codebase>
+
+python3 -c "
+import json
+rt = json.load(open('/tmp/report.json'))['time']['rule_times']
+for r in sorted(rt, key=lambda r: -r['total_seconds'])[:10]:
+    n = r.get('findings')
+    per = 'INF (found nothing)' if n == 0 else ('%.2fs' % (r['total_seconds']/n) if n else '-')
+    print('%8.1fs  %5s findings  %-20s %s' % (r['total_seconds'], n, per, r['id']))
+"
+```
+
+**Seconds per finding is the number that matters**, not total time. Two rules
+with the same total cost are not comparable: one returning thousands of findings
+is doing real work, one returning zero is not. Sorted by total time alone they
+sit next to each other, which is why the ratio is the useful key.
+
+**A rule that finds nothing may still be correct.** The flaw may genuinely be
+absent from that codebase. What is wrong is the cost of *reaching* that answer --
+so never "fix" it by deleting or weakening the rule. Make the negative answer
+cheap instead.
+
+#### The cost model for taint rules
+
+Engines pre-filter candidate files using the literal tokens in your **sink**
+pattern: if none appears in a file, the whole rule can be skipped before any
+taint is seeded. That gate is the difference between a rule costing milliseconds
+and one costing minutes.
+
+It fails silently when the sink has no usable literal:
+
+- very short tokens are usually discarded -- too common to filter on
+- punctuation and type keywords (`int`, `char`, `*`, `(`) are not distinctive
+- a sink of pure syntax -- a cast, an index, a bare dereference -- offers nothing
+  to gate on
+
+When the gate cannot engage, cost is driven entirely by how often the **source**
+matches. So the pathological shape is:
+
+> **a source that matches everywhere + a sink with no distinctive literal**
+
+Both halves are required. A broad source is fine when the sink gates; a
+syntax-only sink is fine when the source is rare.
+
+Before shipping a taint rule, ask:
+
+1. **What literal token would an engine pre-filter my sink on?** If the honest
+   answer is "none", expect the rule to visit every file in the codebase.
+2. **How often does my source match?** `grep -c` its shape on a real codebase.
+   An address-of, a bare assignment or a string literal can appear hundreds of
+   thousands of times.
+3. If both answers are bad, **anchor one of them** -- name a specific function in
+   the sink, or constrain the source to the declaration shape you actually mean.
+
 ### Step 6: Final Validation
 
 ```bash
