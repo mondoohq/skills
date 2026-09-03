@@ -1,6 +1,6 @@
 {
   "name": "mondoo-skills",
-  "description": "MQL (Mondoo Query Language) development and xgrep security skills for Claude Code and other agents",
+  "description": "xgrep security skills for Claude Code and other agents",
   "version": "1.0.0",
   "contextFileName": "agents/AGENTS.md"
 }

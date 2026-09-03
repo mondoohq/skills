@@ -1,8 +1,21 @@
 # Mondoo Skills
 
-A collection of agent skills for MQL (Mondoo Query Language) development and for [xgrep](https://github.com/mondoohq/xgrep)-powered security work — code inspection, rule authoring, finding triage, and remediation. Compatible with Claude Code, Codex, Gemini CLI, and Cursor.
+A collection of agent skills for [xgrep](https://github.com/mondoohq/xgrep)-powered security work — code inspection, rule authoring, finding triage, and remediation. Compatible with Claude Code, Codex, Gemini CLI, and Cursor.
 
 The skills in this repository follow the standardized [Agent Skills](https://agentskills.io/home) format.
+
+> [!NOTE]
+> **Looking for the MQL skill?** It lives in the cnspec repository, at
+> [`mondoohq/cnspec/skills`](https://github.com/mondoohq/cnspec/tree/main/skills),
+> next to the policy content it documents. `mondoo-mql` was mirrored here until it
+> fell behind the maintained copy, so it has been removed rather than left to drift
+> further. Install the current skills from cnspec:
+>
+> ```shell
+> /plugin marketplace add mondoohq/cnspec
+> /plugin install mql@cnspec-skills
+> /plugin install policy-graph@cnspec-skills
+> ```
 
 > [!TIP]
 > If your agent doesn't support skills, you can use [`agents/AGENTS.md`](agents/AGENTS.md) directly as a fallback.
@@ -24,10 +37,6 @@ ones you want.
 2. Install the skills you want:
 
 ```shell
-# MQL development
-/plugin install mondoo-mql@mondoohq/skills
-
-# xgrep security skills
 /plugin install xgrep-inspect@mondoohq/skills
 /plugin install xgrep-rule-creator@mondoohq/skills
 /plugin install xgrep-triage@mondoohq/skills
@@ -85,7 +94,6 @@ Install from repository URL or local checkout via the Cursor plugin flow.
 The skills automatically activate when working on relevant tasks. You can also invoke them directly:
 
 ```shell
-/mondoo-mql
 /xgrep-triage
 /xgrep-rule
 ```
@@ -95,7 +103,6 @@ The skills automatically activate when working on relevant tasks. You can also i
 <!-- BEGIN_SKILLS_TABLE -->
 | Name | Description | Documentation |
 |------|-------------|---------------|
-| `mondoo-mql` | MQL query development with syntax guidance, platform-specific patterns, and MCP tool integration | [SKILL.md](skills/mondoo-mql/SKILL.md) |
 | `secure-coding` | Secure coding guidance for AI agents - proactively avoid generating vulnerable code patterns across 7 languages | [SKILL.md](skills/secure-coding/SKILL.md) |
 | `xgrep-fix` | Fix a whole set of xgrep findings — or just the triage-confirmed true positives in a findings.json — in one pass through the verify/apply harness | [SKILL.md](skills/xgrep-fix/SKILL.md) |
 | `xgrep-inspect` | Navigate and understand source code using xgrep's AST-powered code intelligence | [SKILL.md](skills/xgrep-inspect/SKILL.md) |
@@ -105,28 +112,6 @@ The skills automatically activate when working on relevant tasks. You can also i
 <!-- END_SKILLS_TABLE -->
 
 ## What's Included
-
-### mondoo-mql Skill
-
-The `mondoo-mql` skill provides comprehensive guidance for writing MQL queries:
-
-- **MQL Reference** - Complete syntax documentation, best practices, and anti-patterns to avoid
-- **Platform Samples** - Ready-to-use patterns for AWS, Azure, Linux, Windows, and MS365
-- **MCP Tool Integration** - Real-time schema lookup, query validation, and policy linting
-
-### Mondoo MCP Tools
-
-The skill documents how to use Mondoo's MCP server tools:
-
-| Tool | Purpose |
-|------|---------|
-| `mql-schema-providers` | List all available providers |
-| `mql-schema-overview` | Explore resources in a provider |
-| `mql-schema-resource` | Get field details for a resource |
-| `mql-schema-suggestion` | Autocomplete partial queries |
-| `mql-compiler` | Validate MQL syntax |
-| `mql-bundle-lint` | Lint policy bundles |
-| `mql-bundle-format` | Format policy YAML |
 
 ### xgrep Skills
 

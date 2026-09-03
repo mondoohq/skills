@@ -5,16 +5,10 @@
     "name": "Mondoo"
   },
   "metadata": {
-    "description": "MQL (Mondoo Query Language) development and xgrep security skills for Claude Code and other agents",
+    "description": "xgrep security skills for Claude Code and other agents",
     "version": "1.0.0"
   },
   "plugins": [
-    {
-      "name": "mondoo-mql",
-      "source": "./skills/mondoo-mql",
-      "skills": "./",
-      "description": "MQL query development with syntax guidance, platform-specific patterns, and MCP tool integration"
-    },
     {
       "name": "xgrep-inspect",
       "source": "./skills/xgrep-inspect",

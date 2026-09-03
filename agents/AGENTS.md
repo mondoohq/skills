@@ -3,7 +3,6 @@
 You have additional SKILLs documented in directories containing a "SKILL.md" file.
 
 These skills are:
- - mondoo-mql -> "skills/mondoo-mql/SKILL.md"
  - secure-coding -> "skills/secure-coding/SKILL.md"
  - xgrep-fix -> "skills/xgrep-fix/SKILL.md"
  - xgrep-inspect -> "skills/xgrep-inspect/SKILL.md"
@@ -13,7 +12,6 @@ These skills are:
 
 IMPORTANT: You MUST read the SKILL.md file whenever the description of the skills matches the user intent, or may help accomplish their task.
 
-mondoo-mql: `Use when writing MQL (Mondoo Query Language) queries, working with Mondoo MCP tools, or developing security policies`
 secure-coding: `Review code for security vulnerabilities and provide secure coding guidance across Go, Python, JavaScript, Java, Ruby, C#, and Swift. Triggers on code review, security questions, and vulnerability prevention.`
 xgrep-fix: `Fixes a whole set of xgrep findings — or just the triage-confirmed true positives in a findings.json — in one pass via the verify/apply harness. Auto-applies deterministic fixes (xgrep fix --confirmed), drives the assisted author/verify/apply loop per finding, and surfaces advisory guidance, reporting a per-fingerprint summary. Use to remediate many findings at once after a scan or triage.`
 xgrep-inspect: `Investigates and navigates source code using xgrep's AST-powered code intelligence. Use when exploring unfamiliar code, finding definitions/references, understanding dependencies, or assessing change impact.`
