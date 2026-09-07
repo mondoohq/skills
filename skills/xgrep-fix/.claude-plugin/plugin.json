@@ -1,7 +1,7 @@
 {
   "name": "xgrep-fix",
-  "version": "1.0.0",
-  "description": "Fix a whole set of xgrep findings \u2014 or just the triage-confirmed true positives in a findings.json \u2014 in one pass through the verify/apply harness",
+  "version": "1.0.1",
+  "description": "Fix a whole set of xgrep findings — or just the triage-confirmed true positives in a findings.json — in one pass through the verify/apply harness",
   "author": {
     "name": "Mondoo"
   },
