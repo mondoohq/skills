@@ -67,7 +67,12 @@ jobs:
         # accepts a shape that rejects, publish.sh fails below and no PR opens.
         # Leading zeros are not semver; build metadata (+…) is excluded because
         # it would land in a tag and Release title without affecting precedence.
-        # The `-` sits last in the bracket expression so bash reads it literally.
+        #
+        # In the prerelease class the `-` MUST stay last: POSIX gives a hyphen
+        # its literal meaning only first or last in a bracket expression, and
+        # backslash is not an escape inside one. Do not "clarify" it to `\-`;
+        # that relies on implementation-specific behaviour rather than the
+        # portable rule. Move it and the class silently becomes a range.
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
@@ -103,8 +108,37 @@ jobs:
             *)     next="$INPUT_VERSION" ;;
           esac
           next="${next:-${major}.${minor}.${patch}}"
+
+          # True (0) when $1 is strictly greater than $2 by semver precedence.
+          # Hand-rolled because `sort -V` gets prereleases wrong: it orders
+          # 2.0.0 before 2.0.0-rc.1, while semver §11.3 says a prerelease
+          # precedes its release.
+          semver_gt() {
+            local a="$1" b="$2"
+            local ac="${a%%-*}" bc="${b%%-*}" ap="" bp=""
+            [ "$a" != "$ac" ] && ap="${a#*-}"
+            [ "$b" != "$bc" ] && bp="${b#*-}"
+            local a1 a2 a3 b1 b2 b3
+            IFS=. read -r a1 a2 a3 <<<"$ac"
+            IFS=. read -r b1 b2 b3 <<<"$bc"
+            [ "$a1" -ne "$b1" ] && { [ "$a1" -gt "$b1" ]; return; }
+            [ "$a2" -ne "$b2" ] && { [ "$a2" -gt "$b2" ]; return; }
+            [ "$a3" -ne "$b3" ] && { [ "$a3" -gt "$b3" ]; return; }
+            [ -z "$ap" ] && [ -n "$bp" ] && return 0
+            [ -n "$ap" ] && [ -z "$bp" ] && return 1
+            [ -z "$ap" ] && [ -z "$bp" ] && return 1
+            [[ "$ap" > "$bp" ]]
+          }
+
           if [ "$next" = "$current" ]; then
             echo "::error::Version is already $current — nothing to release." >&2
+            exit 1
+          fi
+          # An explicit version can otherwise move backwards — e.g. 2.0.0 ->
+          # 2.0.0-rc.1 is a downgrade that plain inequality would wave through,
+          # and it would publish a regression to everyone who updates.
+          if ! semver_gt "$next" "$current"; then
+            echo "::error::$next is not newer than the current $current — refusing to go backwards." >&2
             exit 1
           fi
           echo "current=$current" >> "$GITHUB_OUTPUT"
@@ -256,7 +290,9 @@ jobs:
           # --force-with-lease lets a re-run overwrite a stale branch from an
           # earlier attempt but refuses to clobber commits we haven't seen;
           # --force-if-includes also refuses if the remote has commits we fetched
-          # but never integrated.
+          # but never integrated. --force-if-includes needs git >= 2.30, which
+          # every GitHub-hosted runner has; drop it if this is ever moved to a
+          # self-hosted runner with an older git.
           git push --force-with-lease --force-if-includes --set-upstream origin "$BRANCH"
 
           # Build the PR body in a file to avoid nested-heredoc escaping in YAML.

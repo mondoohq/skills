@@ -55,6 +55,16 @@ jobs:
             echo "release=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # When the previous version can't be read — `before` is all-zeros, or
+          # history was rewritten so that commit is gone — this deliberately
+          # falls through and attempts the release. Failing open is the right
+          # bias: the tag guard below is a complete backstop (an existing tag at
+          # this commit is a no-op, one at another commit is a loud error),
+          # whereas failing closed would silently skip a genuine release, which
+          # is the exact failure this whole flow exists to prevent.
+          if [ -z "$previous" ]; then
+            echo "::notice::Could not read the previous version from ${BEFORE}; proceeding, the tag guard decides."
+          fi
           echo "Releasing v${version} (was ${previous:-<unknown>})"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "release=true" >> "$GITHUB_OUTPUT"
@@ -93,7 +103,12 @@ jobs:
           # the repo agree by construction. `generate_release_notes` would list
           # the release PR itself and drift from CHANGELOG.md whenever the notes
           # are edited during review.
-          awk '/^## /{n++} n==1' CHANGELOG.md > release-notes.md
+          # First `## ` section only. The second awk holds blank lines back and
+          # emits them only once more content follows, which drops the padding
+          # before the next heading so the Release body has no trailing blanks.
+          awk '/^## /{n++} n==1' CHANGELOG.md \
+            | awk 'NF { while (held-- > 0) print ""; held = 0; print; next }
+                   { held++ }' > release-notes.md
           if ! head -1 release-notes.md | grep -q "^## v${VERSION}\b"; then
             echo "::error::CHANGELOG.md's top section is not v${VERSION}: $(head -1 release-notes.md)" >&2
             exit 1
