@@ -11,6 +11,11 @@ on:
       - "README.md"
       - ".claude-plugin/marketplace.json"
       - ".claude-plugin/plugin.json"
+      # The other manifests a release stamps. validateVersions() checks all of
+      # them, so a hand-edit here has to reach CI too.
+      - ".cursor-plugin/marketplace.json"
+      - ".cursor-plugin/plugin.json"
+      - "gemini-extension.json"
       # Per-skill manifests: the version check has to see these, or a hand-edited
       # version could land without CI ever running.
       #

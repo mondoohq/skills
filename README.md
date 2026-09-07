@@ -130,22 +130,36 @@ These skills drive the `xgrep` CLI; install it from the
 
 ## Releasing
 
-All skills share one version, stamped by the **Release** workflow. Run it from
-the Actions tab, choose `patch`, `minor`, or `major`, and it will:
+All skills share one version, and you decide when it moves by merging a release
+PR.
 
-1. compute the next version from `.claude-plugin/plugin.json`;
-2. stamp it into every manifest, including each `skills/*/.claude-plugin/plugin.json`;
-3. prepend the changes since the last tag to `CHANGELOG.md`;
-4. commit, tag `vX.Y.Z`, and publish a GitHub Release.
+1. **Actions → Prepare Release**, pick `patch`, `minor`, or `major` (or type an
+   explicit version like `2.0.0` or `2.0.0-rc.1`). Tick **dry run** first to see
+   the computed version and release notes in the job summary without pushing
+   anything.
+2. It opens a **`chore: release vX.Y.Z`** PR with every manifest stamped, the
+   `CHANGELOG.md` section written, and `agents/AGENTS.md` plus the README table
+   regenerated. Review the diff — editing the notes here changes what the
+   release page says.
+3. **Merge it.** That is the release. `release.yml` sees the version change on
+   `main`, mints the `vX.Y.Z` tag, and publishes the GitHub Release from
+   `CHANGELOG.md`. No tag push, nothing else to run.
 
-Tick **dry run** to preview the version and release notes without pushing.
+A version with a hyphen (`2.0.0-rc.1`) publishes flagged as a pre-release, so it
+never becomes the repo's *Latest release*.
+
+Afterwards, anyone with a skill installed picks it up with:
+
+```shell
+claude plugin update <skill>@mondoo-skills
+```
 
 > [!IMPORTANT]
 > **Never edit a version by hand.** `claude plugin update` compares the version
 > in a skill's `plugin.json` and skips the copy when it hasn't changed, so a
 > version that doesn't move leaves everyone who installed the skill on old
-> content indefinitely. `./scripts/publish.sh --check` fails if any skill's
-> version drifts from the root manifest, and CI runs it on every pull request.
+> content indefinitely. `./scripts/publish.sh --check` fails if any manifest's
+> version drifts from the root, and CI runs it on every pull request.
 
 ## License
 
