@@ -68,8 +68,62 @@ function collectSkills(): Skill[] {
 }
 
 /**
- * Every skill ships one repo-wide version, stamped by the release workflow
- * (.github/workflows/release.yml) — never edited by hand.
+ * Semver X.Y.Z with an optional prerelease suffix (2.0.0-rc.1). Build metadata
+ * (+…) is deliberately excluded: it would end up in a git tag and a GitHub
+ * Release title, and it never affects precedence.
+ *
+ * Keep this in sync with the `version` input regex in
+ * .github/workflows/prepare-release.yml. If the workflow accepts a shape this
+ * rejects, the release run dies inside publish.sh and no PR is ever opened.
+ */
+const VERSION_RE = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
+
+interface VersionedManifest {
+  version?: string;
+  metadata?: { version?: string };
+}
+
+/** Assert one manifest carries `expected`, reading the version via `pick`. */
+function checkManifestVersion(
+  rel: string,
+  expected: string,
+  pick: (m: VersionedManifest) => string | undefined
+): string[] {
+  const path = join(ROOT, rel);
+  if (!existsSync(path)) {
+    return [`${rel} is missing — the release stamping step expects it to exist`];
+  }
+  let manifest: VersionedManifest;
+  try {
+    manifest = JSON.parse(readFileSync(path, "utf-8"));
+  } catch {
+    return [`${rel} is not valid JSON`];
+  }
+  const found = pick(manifest);
+  if (found !== expected) {
+    return [
+      `Version drift in ${rel}: '${found}' != root '${expected}'. ` +
+        `Versions are stamped by the release workflow; do not edit them by hand.`,
+    ];
+  }
+  return [];
+}
+
+/**
+ * Manifests outside skills/ that must all carry the repo-wide version.
+ * `top` files hold `.version`; `metadata` files hold `.metadata.version`
+ * (writing the wrong one adds an off-schema key and leaves the real version
+ * stale, so the distinction matters).
+ */
+const SIBLING_TOP_MANIFESTS = [".cursor-plugin/plugin.json", "gemini-extension.json"];
+const SIBLING_METADATA_MANIFESTS = [
+  ".claude-plugin/marketplace.json",
+  ".cursor-plugin/marketplace.json",
+];
+
+/**
+ * Every skill ships one repo-wide version, stamped by the Prepare Release
+ * workflow (.github/workflows/prepare-release.yml) — never edited by hand.
  *
  * This check exists because a stale version is silent and expensive: Claude
  * Code's `plugin update` compares the version in a skill's plugin.json and
@@ -82,10 +136,20 @@ function validateVersions(skills: Skill[]): string[] {
   const errors: string[] = [];
   const rootVersion = loadRootVersion();
 
-  if (!/^\d+\.\d+\.\d+$/.test(rootVersion)) {
+  if (!VERSION_RE.test(rootVersion)) {
     errors.push(
-      `Root .claude-plugin/plugin.json version '${rootVersion}' is not semver (X.Y.Z)`
+      `Root .claude-plugin/plugin.json version '${rootVersion}' is not semver (X.Y.Z or X.Y.Z-pre)`
     );
+  }
+
+  // The stamping step writes these too, so check them here — otherwise a
+  // renamed or removed manifest silently ships unstamped and, say, Gemini users
+  // never see an update.
+  for (const rel of SIBLING_TOP_MANIFESTS) {
+    errors.push(...checkManifestVersion(rel, rootVersion, (m) => m.version));
+  }
+  for (const rel of SIBLING_METADATA_MANIFESTS) {
+    errors.push(...checkManifestVersion(rel, rootVersion, (m) => m.metadata?.version));
   }
 
   for (const skill of skills) {

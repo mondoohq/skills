@@ -1,0 +1,345 @@
+name: Prepare Release
+
+# Opens the release PR: stamps one version across every manifest, writes the
+# changelog, and pushes it to a release/vX.Y.Z branch for review.
+#
+# `main` is PR-only (org rulesets, no Actions bypass), so nothing here pushes to
+# main directly. Merging the PR this opens is the moment a release happens —
+# release.yml then mints the tag and publishes. You never push a tag by hand.
+#
+# Versions are stamped here and nowhere else. `claude plugin update` compares the
+# version in a skill's plugin.json and skips the copy when it hasn't moved, so a
+# version nobody remembered to bump silently pins every installed user to old
+# content — cnspec shipped four months of skill fixes that way
+# (mondoohq/cnspec#3613).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "patch | minor | major, or an explicit version like 2.0.0 or 2.0.0-rc.1"
+        type: string
+        required: true
+        default: patch
+      dry_run:
+        description: "Compute and print everything, push nothing"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write # push the release/vX.Y.Z branch
+  pull-requests: write # open or refresh the release PR
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      # workflow_dispatch runs on whichever ref is picked in the UI and takes no
+      # `branches:` filter (the event supports only `inputs`), so the ref is
+      # checked here. Without this, dispatching from a feature branch would stamp
+      # that branch's tree and open a PR from it.
+      - name: Refuse to prepare a release from a non-default branch
+        if: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
+        run: |
+          echo "::error::Prepare releases from ${{ github.event.repository.default_branch }}, not ${{ github.ref_name }}."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so the changelog can span the last tag
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate version input
+        # Passed through env, never interpolated with ${{ }} — otherwise a
+        # crafted version value injects shell commands.
+        #
+        # Keep in sync with VERSION_RE in scripts/generate_agents.ts. If this
+        # accepts a shape that rejects, publish.sh fails below and no PR opens.
+        # Leading zeros are not semver; build metadata (+…) is excluded because
+        # it would land in a tag and Release title without affecting precedence.
+        #
+        # In the prerelease class the `-` MUST stay last: POSIX gives a hyphen
+        # its literal meaning only first or last in a bracket expression, and
+        # backslash is not an escape inside one. Do not "clarify" it to `\-`;
+        # that relies on implementation-specific behaviour rather than the
+        # portable rule. Move it and the class silently becomes a range.
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$INPUT_VERSION" =~ ^(patch|minor|major|(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?)$ ]]; then
+            echo "::error::Invalid version '$INPUT_VERSION'. Use patch, minor, major, X.Y.Z, or X.Y.Z-pre." >&2
+            exit 1
+          fi
+
+      - name: Compute next version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # .claude-plugin/plugin.json is the single authority — it is also what
+          # loadRootVersion() in scripts/generate_agents.ts reads.
+          current="$(jq -r .version .claude-plugin/plugin.json)"
+          if ! [[ "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::version '$current' in .claude-plugin/plugin.json is not semver" >&2
+            exit 1
+          fi
+          major="${BASH_REMATCH[1]}"; minor="${BASH_REMATCH[2]}"; patch="${BASH_REMATCH[3]}"
+          pre="${BASH_REMATCH[4]:-}"
+          next=""
+          case "$INPUT_VERSION" in
+            # Matching `npm version`: a patch bump on a prerelease *promotes* it
+            # (2.0.0-rc.1 -> 2.0.0) instead of moving to 2.0.1. minor/major bump
+            # the core version and drop the prerelease suffix.
+            patch) if [ -z "$pre" ]; then patch=$((patch + 1)); fi ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            *)     next="$INPUT_VERSION" ;;
+          esac
+          next="${next:-${major}.${minor}.${patch}}"
+
+          # True (0) when $1 is strictly greater than $2 by semver precedence.
+          # Hand-rolled because `sort -V` gets prereleases wrong: it orders
+          # 2.0.0 before 2.0.0-rc.1, while semver §11.3 says a prerelease
+          # precedes its release.
+          semver_gt() {
+            local a="$1" b="$2"
+            local ac="${a%%-*}" bc="${b%%-*}" ap="" bp=""
+            [ "$a" != "$ac" ] && ap="${a#*-}"
+            [ "$b" != "$bc" ] && bp="${b#*-}"
+            local a1 a2 a3 b1 b2 b3
+            IFS=. read -r a1 a2 a3 <<<"$ac"
+            IFS=. read -r b1 b2 b3 <<<"$bc"
+            [ "$a1" -ne "$b1" ] && { [ "$a1" -gt "$b1" ]; return; }
+            [ "$a2" -ne "$b2" ] && { [ "$a2" -gt "$b2" ]; return; }
+            [ "$a3" -ne "$b3" ] && { [ "$a3" -gt "$b3" ]; return; }
+            [ -z "$ap" ] && [ -n "$bp" ] && return 0
+            [ -n "$ap" ] && [ -z "$bp" ] && return 1
+            [ -z "$ap" ] && [ -z "$bp" ] && return 1
+            [[ "$ap" > "$bp" ]]
+          }
+
+          if [ "$next" = "$current" ]; then
+            echo "::error::Version is already $current — nothing to release." >&2
+            exit 1
+          fi
+          # An explicit version can otherwise move backwards — e.g. 2.0.0 ->
+          # 2.0.0-rc.1 is a downgrade that plain inequality would wave through,
+          # and it would publish a regression to everyone who updates.
+          if ! semver_gt "$next" "$current"; then
+            echo "::error::$next is not newer than the current $current — refusing to go backwards." >&2
+            exit 1
+          fi
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "branch=release/v${next}" >> "$GITHUB_OUTPUT"
+          echo "Preparing $current -> $next"
+
+      - name: Guard against an existing tag or a competing release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT: ${{ steps.version.outputs.next }}
+          BRANCH: ${{ steps.version.outputs.branch }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/v${NEXT}" >/dev/null 2>&1; then
+            echo "::error::Tag v${NEXT} already exists. Pick a different version." >&2
+            exit 1
+          fi
+          # Two release PRs merged in sequence mint two tags, and the second can
+          # carry a *lower* version than main already has — a silent regression.
+          others="$(gh pr list --state open --json number,headRefName \
+            --jq "[.[] | select(.headRefName | startswith(\"release/v\")) | select(.headRefName != \"${BRANCH}\") | .number] | join(\", \")")"
+          if [ -n "$others" ]; then
+            echo "::error::Open release PR(s) already exist: #${others}. Merge or close them first." >&2
+            exit 1
+          fi
+
+      - name: Stamp version across all manifests
+        env:
+          NEXT: ${{ steps.version.outputs.next }}
+        run: |
+          set -euo pipefail
+          # plugin.json and gemini-extension.json carry a top-level "version";
+          # marketplace.json carries it under "metadata". Writing the wrong one
+          # adds an off-schema key and leaves the real version stale, so the two
+          # shapes are stamped separately.
+          #
+          # A missing manifest is a hard failure, not a skip: silently shipping
+          # one unstamped manifest is the exact bug this whole flow exists to
+          # prevent.
+          stamp_top() {
+            [ -f "$1" ] || { echo "::error::expected manifest $1 is missing" >&2; exit 1; }
+            jq --arg v "$NEXT" '.version = $v' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+            echo "  stamped $1 (.version)"
+          }
+          stamp_metadata() {
+            [ -f "$1" ] || { echo "::error::expected manifest $1 is missing" >&2; exit 1; }
+            jq --arg v "$NEXT" '.metadata.version = $v' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+            echo "  stamped $1 (.metadata.version)"
+          }
+          stamp_top .claude-plugin/plugin.json
+          stamp_top .cursor-plugin/plugin.json
+          stamp_top gemini-extension.json
+          stamp_metadata .claude-plugin/marketplace.json
+          stamp_metadata .cursor-plugin/marketplace.json
+
+          # nullglob + a count assertion: without it a glob matching nothing
+          # expands to the literal string, the -f test skips it, and the release
+          # ships with zero skills bumped.
+          shopt -s nullglob
+          skill_manifests=(skills/*/.claude-plugin/plugin.json)
+          if [ "${#skill_manifests[@]}" -eq 0 ]; then
+            echo "::error::no skills/*/.claude-plugin/plugin.json matched" >&2
+            exit 1
+          fi
+          for f in "${skill_manifests[@]}"; do stamp_top "$f"; done
+          echo "Stamped ${#skill_manifests[@]} skill manifests + 5 top-level manifests to ${NEXT}"
+
+      - name: Regenerate artifacts and verify consistency
+        # Also the release PR's only CI: a PR opened with GITHUB_TOKEN does not
+        # trigger validate.yml, so this run of publish.sh is what proves the
+        # manifests agree. (No ruleset requires status checks, so the PR is still
+        # mergeable. If `validate` ever becomes required, this flow needs a
+        # GitHub App token instead.)
+        run: ./scripts/publish.sh
+
+      - name: Build changelog
+        env:
+          NEXT: ${{ steps.version.outputs.next }}
+        run: |
+          set -euo pipefail
+          previous=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          # Two explicit branches rather than a conditionally-empty array: under
+          # `set -u`, expanding an empty array is an error on bash < 4.4.
+          # Subject lines only, excluding the release commits themselves.
+          if [ -n "$previous" ]; then
+            echo "Changes since ${previous}:"
+            git log --no-merges --pretty=format:'- %s' "${previous}..HEAD" \
+              | grep -v '^- chore: release v' > changelog-body.txt || true
+          else
+            # No tag exists only on the very first release. Capped so a
+            # long-lived untagged repo can't dump its whole history into the
+            # notes; later releases are bounded by the previous tag.
+            echo "No previous tag (first release); using up to 50 commits of history."
+            git log --no-merges --max-count=50 --pretty=format:'- %s' HEAD \
+              | grep -v '^- chore: release v' > changelog-body.txt || true
+          fi
+          if [ ! -s changelog-body.txt ]; then
+            echo "- No user-facing changes." > changelog-body.txt
+          fi
+          # release.yml asserts this exact header shape when it extracts the
+          # notes, so keep the two in step.
+          {
+            echo "## v${NEXT} - $(date -u +%Y-%m-%d)"
+            echo
+            cat changelog-body.txt
+            echo
+          } > release-notes.md
+          cat release-notes.md
+
+          if [ -f CHANGELOG.md ]; then
+            { cat release-notes.md; echo; cat CHANGELOG.md; } > CHANGELOG.md.tmp
+          else
+            { echo "# Changelog"; echo; cat release-notes.md; } > CHANGELOG.md.tmp
+          fi
+          mv CHANGELOG.md.tmp CHANGELOG.md
+
+      - name: Open or refresh the release PR
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT: ${{ steps.version.outputs.next }}
+          BRANCH: ${{ steps.version.outputs.branch }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          # The numeric form maps to the bot account. Both pull_request rules set
+          # require_extra_approval_for_unattributed_changes, and a commit from an
+          # address GitHub can't resolve counts as unattributed — which would ask
+          # for a second approval on every release PR.
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          # Allowlist rather than `git add -A`, so the scratch files this job
+          # writes (release-notes.md, changelog-body.txt) and any stray artifact
+          # from publish.sh can never ride along. Directories, not individual
+          # manifests: `git add` fails outright on a pathspec matching nothing.
+          git add -- CHANGELOG.md README.md agents .claude-plugin .cursor-plugin \
+            gemini-extension.json skills
+          echo "Staged for the release PR:"
+          git status --short
+          # Title and subject must match: squash_merge_commit_title is
+          # COMMIT_OR_PR_TITLE, so keeping them identical makes the squashed
+          # commit subject deterministic.
+          git commit -m "chore: release v${NEXT}"
+
+          # Refresh the remote-tracking ref so --force-with-lease has an accurate
+          # basis (a no-op when the branch doesn't exist remotely yet).
+          git fetch origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" 2>/dev/null || true
+          # --force-with-lease lets a re-run overwrite a stale branch from an
+          # earlier attempt but refuses to clobber commits we haven't seen;
+          # --force-if-includes also refuses if the remote has commits we fetched
+          # but never integrated. --force-if-includes needs git >= 2.30, which
+          # every GitHub-hosted runner has; drop it if this is ever moved to a
+          # self-hosted runner with an older git.
+          git push --force-with-lease --force-if-includes --set-upstream origin "$BRANCH"
+
+          # Build the PR body in a file to avoid nested-heredoc escaping in YAML.
+          {
+            printf 'Release **v%s** (via the *Prepare Release* workflow).\n\n' "$NEXT"
+            printf '## Merging this PR publishes the release\n\n'
+            printf 'No tag push needed — `release.yml` sees the version change on `main`, '
+            printf 'mints the `v%s` tag and publishes the GitHub Release from `CHANGELOG.md`.\n\n' "$NEXT"
+            printf 'Installed users then get it with `claude plugin update <skill>@mondoo-skills`.\n\n'
+            printf '## What changed here\n\n'
+            printf -- '- every manifest stamped to `%s` (root, Cursor, Gemini, and each skill)\n' "$NEXT"
+            printf -- '- `CHANGELOG.md` updated; `agents/AGENTS.md` and the README table regenerated\n\n'
+            printf 'Edit the notes in this PR if you want them worded differently — '
+            printf 'the Release page is generated from `CHANGELOG.md`, so what you approve is what ships.\n\n'
+            printf '> [!NOTE]\n'
+            printf '> The notes reflect `main` as of this branch point. If other PRs land before '
+            printf 'this one, re-run *Prepare Release* to refresh them (it updates this PR in place).\n\n'
+            printf '## Release notes\n\n'
+            cat release-notes.md
+          } > pr-body.md
+
+          existing="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "chore: release v${NEXT}" --body-file pr-body.md
+          else
+            gh pr create --base "${{ github.event.repository.default_branch }}" --head "$BRANCH" \
+              --title "chore: release v${NEXT}" --body-file pr-body.md
+          fi
+
+      - name: Dry run summary
+        if: ${{ inputs.dry_run }}
+        env:
+          CURRENT: ${{ steps.version.outputs.current }}
+          NEXT: ${{ steps.version.outputs.next }}
+        run: |
+          {
+            echo "## Dry run: v${CURRENT} -> v${NEXT}"
+            echo
+            echo "Nothing was pushed and no PR was opened."
+            echo
+            echo '### Files that would change'
+            echo
+            echo '```'
+            git diff --stat
+            echo '```'
+            echo
+            echo '### Release notes'
+            echo
+            cat release-notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
