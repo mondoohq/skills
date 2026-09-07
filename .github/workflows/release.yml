@@ -32,6 +32,16 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      # workflow_dispatch runs on whichever ref you pick in the UI, and it takes
+      # no `branches:` filter (the event supports only `inputs`), so the ref is
+      # checked here instead. Without this, dispatching from a feature branch
+      # would tag that branch's tree and publish it as the release.
+      - name: Refuse to release from a non-default branch
+        if: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
+        run: |
+          echo "::error::Releases must be cut from ${{ github.event.repository.default_branch }}, but this run is on ${{ github.ref_name }}."
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -102,16 +112,22 @@ jobs:
         run: |
           set -euo pipefail
           previous=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -n "$previous" ]; then
-            range="${previous}..HEAD"
-            echo "Changes since ${previous}:"
-          else
-            range="HEAD"
-            echo "No previous tag; using full history."
-          fi
+          # No tag exists only on the very first release. Walking all of HEAD
+          # then is intentional (there is no earlier boundary), but it is capped
+          # so a long-lived untagged repo can't dump its entire history into the
+          # notes. Subsequent releases are naturally bounded by the last tag.
+          # Two explicit branches rather than a conditionally-empty array: under
+          # `set -u`, expanding an empty array is an error on bash < 4.4.
           # Subject lines only, excluding the release commits themselves.
-          git log --no-merges --pretty=format:'- %s' $range \
-            | grep -v '^- chore(release):' > changelog-body.txt || true
+          if [ -n "$previous" ]; then
+            echo "Changes since ${previous}:"
+            git log --no-merges --pretty=format:'- %s' "${previous}..HEAD" \
+              | grep -v '^- chore(release):' > changelog-body.txt || true
+          else
+            echo "No previous tag (first release); using up to 50 commits of history."
+            git log --no-merges --max-count=50 --pretty=format:'- %s' HEAD \
+              | grep -v '^- chore(release):' > changelog-body.txt || true
+          fi
           if [ ! -s changelog-body.txt ]; then
             echo "- No user-facing changes." > changelog-body.txt
           fi
@@ -138,10 +154,23 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A ':!release-notes.md' ':!changelog-body.txt'
+          # Allowlist rather than `git add -A`, so scratch files this job writes
+          # (release-notes.md, changelog-body.txt) and any stray artifact from
+          # publish.sh can never ride along in a release commit.
+          #
+          # Directories, not individual manifests: `git add` fails outright on a
+          # pathspec that matches nothing, so naming every optional file would
+          # break the release the day one of them is removed. These directories
+          # hold only manifests and generated docs, so the allowlist stays tight.
+          git add -- CHANGELOG.md README.md agents .claude-plugin .cursor-plugin \
+            gemini-extension.json skills
+          echo "Staged for release:"
+          git status --short
           git commit -m "chore(release): v${NEXT}"
           git tag -a "v${NEXT}" -m "v${NEXT}"
-          git push origin HEAD:main
+          # Push the ref that was checked out (guarded to the default branch
+          # above) rather than hardcoding a destination branch.
+          git push origin "HEAD:${GITHUB_REF_NAME}"
           git push origin "v${NEXT}"
 
       - name: Create GitHub Release

@@ -13,6 +13,11 @@ on:
       - ".claude-plugin/plugin.json"
       # Per-skill manifests: the version check has to see these, or a hand-edited
       # version could land without CI ever running.
+      #
+      # The single `*` assumes skills live exactly one level under skills/, which
+      # is the layout collectSkills() in scripts/generate_agents.ts also requires
+      # (it reads skills/<name>/SKILL.md and does not recurse). If skills are ever
+      # nested deeper, this filter and that function have to change together.
       - "skills/*/.claude-plugin/plugin.json"
 
 jobs:
