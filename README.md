@@ -128,6 +128,25 @@ Semgrep-compatible SAST scanner, for security review and remediation workflows:
 These skills drive the `xgrep` CLI; install it from the
 [xgrep repository](https://github.com/mondoohq/xgrep) to use them.
 
+## Releasing
+
+All skills share one version, stamped by the **Release** workflow. Run it from
+the Actions tab, choose `patch`, `minor`, or `major`, and it will:
+
+1. compute the next version from `.claude-plugin/plugin.json`;
+2. stamp it into every manifest, including each `skills/*/.claude-plugin/plugin.json`;
+3. prepend the changes since the last tag to `CHANGELOG.md`;
+4. commit, tag `vX.Y.Z`, and publish a GitHub Release.
+
+Tick **dry run** to preview the version and release notes without pushing.
+
+> [!IMPORTANT]
+> **Never edit a version by hand.** `claude plugin update` compares the version
+> in a skill's `plugin.json` and skips the copy when it hasn't changed, so a
+> version that doesn't move leaves everyone who installed the skill on old
+> content indefinitely. `./scripts/publish.sh --check` fails if any skill's
+> version drifts from the root manifest, and CI runs it on every pull request.
+
 ## License
 
 Apache-2.0

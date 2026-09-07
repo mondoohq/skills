@@ -3,6 +3,7 @@
  * Generate AGENTS.md from AGENTS_TEMPLATE.md and SKILL.md frontmatter.
  *
  * Also validates that marketplace.json is in sync with discovered skills,
+ * that every skill's plugin.json carries the repo-wide release version,
  * and updates the skills table in README.md.
  */
 
@@ -13,6 +14,7 @@ const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const TEMPLATE_PATH = join(ROOT, "scripts", "AGENTS_TEMPLATE.md");
 const OUTPUT_PATH = join(ROOT, "agents", "AGENTS.md");
 const MARKETPLACE_PATH = join(ROOT, ".claude-plugin", "marketplace.json");
+const PLUGIN_PATH = join(ROOT, ".claude-plugin", "plugin.json");
 const README_PATH = join(ROOT, "README.md");
 
 const README_TABLE_START = "<!-- BEGIN_SKILLS_TABLE -->";
@@ -65,6 +67,63 @@ function collectSkills(): Skill[] {
   return skills.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 }
 
+/**
+ * Every skill ships one repo-wide version, stamped by the release workflow
+ * (.github/workflows/release.yml) — never edited by hand.
+ *
+ * This check exists because a stale version is silent and expensive: Claude
+ * Code's `plugin update` compares the version in a skill's plugin.json and
+ * skips the copy when it hasn't moved, so installed users keep the old content
+ * indefinitely. cnspec shipped four months of skill fixes nobody received that
+ * way (mondoohq/cnspec#3613). Failing the build is how that stays impossible
+ * here.
+ */
+function validateVersions(skills: Skill[]): string[] {
+  const errors: string[] = [];
+  const rootVersion = loadRootVersion();
+
+  if (!/^\d+\.\d+\.\d+$/.test(rootVersion)) {
+    errors.push(
+      `Root .claude-plugin/plugin.json version '${rootVersion}' is not semver (X.Y.Z)`
+    );
+  }
+
+  for (const skill of skills) {
+    const manifestPath = join(ROOT, skill.path, ".claude-plugin", "plugin.json");
+    if (!existsSync(manifestPath)) {
+      errors.push(
+        `Skill '${skill.name}' is missing ${relative(ROOT, manifestPath)} — ` +
+          `without it the plugin has no version and cannot be updated in place`
+      );
+      continue;
+    }
+
+    let manifest: { name?: string; version?: string };
+    try {
+      manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
+    } catch {
+      errors.push(`Skill '${skill.name}': ${relative(ROOT, manifestPath)} is not valid JSON`);
+      continue;
+    }
+
+    if (manifest.name !== skill.name) {
+      errors.push(
+        `Name mismatch in ${relative(ROOT, manifestPath)}: ` +
+          `SKILL.md='${skill.name}', plugin.json='${manifest.name}'`
+      );
+    }
+    if (manifest.version !== rootVersion) {
+      errors.push(
+        `Version drift in ${relative(ROOT, manifestPath)}: ` +
+          `'${manifest.version}' != root '${rootVersion}'. ` +
+          `Versions are stamped by the release workflow; do not edit them by hand.`
+      );
+    }
+  }
+
+  return errors;
+}
+
 function render(template: string, skills: Skill[]): string {
   return template.replace(/\{\{#skills\}\}(.*?)\{\{\/skills\}\}/gs, (_, block: string) => {
     const trimmed = block.replace(/^\n/, "").replace(/\n$/, "");
@@ -84,6 +143,18 @@ function loadMarketplace(): { plugins: MarketplacePlugin[] } {
     throw new Error(`marketplace.json not found at ${MARKETPLACE_PATH}`);
   }
   return JSON.parse(readFileSync(MARKETPLACE_PATH, "utf-8"));
+}
+
+/** The single release version every skill inherits. */
+function loadRootVersion(): string {
+  if (!existsSync(PLUGIN_PATH)) {
+    throw new Error(`plugin.json not found at ${PLUGIN_PATH}`);
+  }
+  const plugin = JSON.parse(readFileSync(PLUGIN_PATH, "utf-8"));
+  if (!plugin.version) {
+    throw new Error(`No version in ${PLUGIN_PATH}`);
+  }
+  return plugin.version;
 }
 
 function generateReadmeTable(skills: Skill[]): string {
@@ -190,6 +261,16 @@ function main(): void {
     process.exit(1);
   }
   console.log("Marketplace.json validation passed.");
+
+  const versionErrors = validateVersions(skills);
+  if (versionErrors.length > 0) {
+    console.error("\nPlugin version validation errors:");
+    for (const error of versionErrors) {
+      console.error(`  - ${error}`);
+    }
+    process.exit(1);
+  }
+  console.log(`Plugin versions consistent at ${loadRootVersion()}.`);
 
   if (updateReadme(skills)) {
     console.log(`Updated ${README_PATH} skills table.`);

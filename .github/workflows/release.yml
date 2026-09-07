@@ -1,0 +1,166 @@
+name: Release
+
+# Cuts a release: stamps one version across every manifest, writes the
+# changelog, tags, and publishes a GitHub Release.
+#
+# Versions are stamped here and nowhere else. A skill's plugin.json version is
+# what Claude Code compares on `plugin update`; if it does not move, installed
+# users silently keep the old content no matter what landed on main. Doing this
+# by hand is how cnspec shipped four months of skill fixes nobody received
+# (mondoohq/cnspec#3613), so the only supported way to change a version is to
+# run this workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Which part of the version to increment"
+        required: true
+        type: choice
+        default: patch
+        options: [patch, minor, major]
+      dry_run:
+        description: "Compute and print everything, but push nothing"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # commit the version bump, push the tag, create the release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so the changelog can span the last tag
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Compute next version
+        id: version
+        run: |
+          set -euo pipefail
+          current=$(jq -r .version .claude-plugin/plugin.json)
+          if ! [[ "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::version '$current' in .claude-plugin/plugin.json is not semver"
+            exit 1
+          fi
+          major="${BASH_REMATCH[1]}"; minor="${BASH_REMATCH[2]}"; patch="${BASH_REMATCH[3]}"
+          case "${{ inputs.bump }}" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+          next="${major}.${minor}.${patch}"
+          if git rev-parse "v${next}" >/dev/null 2>&1; then
+            echo "::error::tag v${next} already exists"
+            exit 1
+          fi
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "Releasing $current -> $next"
+
+      - name: Stamp version across all manifests
+        env:
+          NEXT: ${{ steps.version.outputs.next }}
+        run: |
+          set -euo pipefail
+          # plugin.json and gemini-extension.json carry a top-level "version";
+          # marketplace.json carries it under "metadata". Writing the wrong one
+          # adds an off-schema key and leaves the real version stale, so the two
+          # shapes are stamped separately.
+          stamp_top() {
+            [ -f "$1" ] || return 0
+            jq --arg v "$NEXT" '.version = $v' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+            echo "  stamped $1 (.version)"
+          }
+          stamp_metadata() {
+            [ -f "$1" ] || return 0
+            jq --arg v "$NEXT" '.metadata.version = $v' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+            echo "  stamped $1 (.metadata.version)"
+          }
+          stamp_top .claude-plugin/plugin.json
+          stamp_top .cursor-plugin/plugin.json
+          stamp_top gemini-extension.json
+          stamp_metadata .claude-plugin/marketplace.json
+          stamp_metadata .cursor-plugin/marketplace.json
+          for f in skills/*/.claude-plugin/plugin.json; do stamp_top "$f"; done
+
+      - name: Regenerate artifacts and verify consistency
+        run: ./scripts/publish.sh
+
+      - name: Build changelog
+        id: changelog
+        env:
+          NEXT: ${{ steps.version.outputs.next }}
+        run: |
+          set -euo pipefail
+          previous=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$previous" ]; then
+            range="${previous}..HEAD"
+            echo "Changes since ${previous}:"
+          else
+            range="HEAD"
+            echo "No previous tag; using full history."
+          fi
+          # Subject lines only, excluding the release commits themselves.
+          git log --no-merges --pretty=format:'- %s' $range \
+            | grep -v '^- chore(release):' > changelog-body.txt || true
+          if [ ! -s changelog-body.txt ]; then
+            echo "- No user-facing changes." > changelog-body.txt
+          fi
+          {
+            echo "## v${NEXT} - $(date -u +%Y-%m-%d)"
+            echo
+            cat changelog-body.txt
+            echo
+          } > release-notes.md
+          cat release-notes.md
+
+          if [ -f CHANGELOG.md ]; then
+            { cat release-notes.md; echo; cat CHANGELOG.md; } > CHANGELOG.md.tmp
+          else
+            { echo "# Changelog"; echo; cat release-notes.md; } > CHANGELOG.md.tmp
+          fi
+          mv CHANGELOG.md.tmp CHANGELOG.md
+
+      - name: Commit, tag and push
+        if: ${{ !inputs.dry_run }}
+        env:
+          NEXT: ${{ steps.version.outputs.next }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A ':!release-notes.md' ':!changelog-body.txt'
+          git commit -m "chore(release): v${NEXT}"
+          git tag -a "v${NEXT}" -m "v${NEXT}"
+          git push origin HEAD:main
+          git push origin "v${NEXT}"
+
+      - name: Create GitHub Release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT: ${{ steps.version.outputs.next }}
+        run: gh release create "v${NEXT}" --title "v${NEXT}" --notes-file release-notes.md
+
+      - name: Dry run summary
+        if: ${{ inputs.dry_run }}
+        env:
+          CURRENT: ${{ steps.version.outputs.current }}
+          NEXT: ${{ steps.version.outputs.next }}
+        run: |
+          {
+            echo "## Dry run: v${CURRENT} -> v${NEXT}"
+            echo
+            echo "Nothing was pushed. Release notes would be:"
+            echo
+            cat release-notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
